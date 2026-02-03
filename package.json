@@ -1,0 +1,33 @@
+{
+  "name": "axios-stream",
+  "version": "1.0.0",
+  "description": "二次封装 axios，保留原始配置，提供流式接口，提升开发效率",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "axios",
+    "stream",
+    "fetch",
+    "sse",
+    "openai",
+    "llm",
+    "streaming"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "zovop",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.13.4"
+  }
+}
