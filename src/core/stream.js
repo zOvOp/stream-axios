@@ -1,19 +1,75 @@
 /**
- * Parse SSE data chunk
- * @param {string} sseText
- * @param {Function} onMessage
+ * Parse a single SSE event block
+ * @param {string} eventBlock - A single SSE event (lines separated by \n)
+ * @returns {{ event?: string, data?: string, id?: string, retry?: number } | null}
+ */
+function parseSSEEvent(eventBlock) {
+  const lines = eventBlock.split("\n");
+  const result = {};
+  const dataLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith("data:")) {
+      // Support both "data: content" and "data:content"
+      const content = line.slice(5);
+      dataLines.push(content.startsWith(" ") ? content.slice(1) : content);
+    } else if (line.startsWith("event:")) {
+      result.event = line.slice(6).trim();
+    } else if (line.startsWith("id:")) {
+      result.id = line.slice(3).trim();
+    } else if (line.startsWith("retry:")) {
+      const retry = parseInt(line.slice(6).trim(), 10);
+      if (!isNaN(retry)) result.retry = retry;
+    }
+    // Ignore comments (lines starting with :) and unknown fields
+  }
+
+  // Join multiple data lines with newline (per SSE spec)
+  if (dataLines.length > 0) {
+    result.data = dataLines.join("\n");
+  }
+
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/**
+ * Parse SSE data chunk (simple, stateless version)
+ * @param {string} sseText - Raw SSE text chunk
+ * @param {Function} onMessage - Callback receiving data content string
  */
 export function parseSSEChunk(sseText, onMessage) {
-  const sseLines = sseText.split("\n\n").filter(Boolean);
-  for (const line of sseLines) {
-    const dataPrefix = "data: ";
-    if (line.startsWith(dataPrefix)) {
-      const validContent = line.slice(dataPrefix.length).trim();
-      if (validContent) {
-        onMessage(validContent);
-      }
+  const events = sseText.split("\n\n").filter(Boolean);
+  for (const eventBlock of events) {
+    const parsed = parseSSEEvent(eventBlock);
+    if (parsed?.data) {
+      onMessage(parsed.data);
     }
   }
+}
+
+/**
+ * Create a stateful SSE parser with buffer for handling chunks that may be split
+ * @param {Function} onMessage - Callback receiving parsed SSE event object { event?, data?, id?, retry? }
+ * @returns {Function} Parser function that accepts raw chunk string
+ */
+export function createSSEParser(onMessage) {
+  let buffer = "";
+
+  return (chunk) => {
+    buffer += chunk;
+    // Split by double newline (SSE event separator)
+    const parts = buffer.split("\n\n");
+    // Keep the last incomplete part in buffer
+    buffer = parts.pop() || "";
+
+    for (const eventBlock of parts) {
+      if (!eventBlock.trim()) continue;
+      const parsed = parseSSEEvent(eventBlock);
+      if (parsed) {
+        onMessage(parsed);
+      }
+    }
+  };
 }
 
 /**
@@ -24,9 +80,28 @@ export const createStreamRequest = (instance) => {
   return async (options = {}, onChunk, onComplete, onError) => {
     const controller = new AbortController();
     let reader = null;
+    let externalSignalHandler = null;
+
+    // Handle external signal
+    if (options.signal) {
+      if (options.signal.aborted) {
+        controller.abort();
+      } else {
+        externalSignalHandler = () => controller.abort();
+        options.signal.addEventListener("abort", externalSignalHandler);
+      }
+    }
+
+    const cleanup = () => {
+      if (options.signal && externalSignalHandler) {
+        options.signal.removeEventListener("abort", externalSignalHandler);
+        externalSignalHandler = null;
+      }
+    };
 
     const cancelRequest = () => {
       try {
+        cleanup();
         controller.abort();
         reader?.releaseLock();
         if (onError) onError("Stream request cancelled manually");
@@ -66,6 +141,7 @@ export const createStreamRequest = (instance) => {
         try {
           const { done, value } = await reader.read();
           if (done) {
+            cleanup();
             if (onComplete) onComplete();
             return;
           }
@@ -74,6 +150,7 @@ export const createStreamRequest = (instance) => {
           if (onChunk) onChunk(chunk);
           await readStreamChunk();
         } catch (err) {
+          cleanup();
           if (err.name === "AbortError") return;
           if (onError) onError(`Read stream failed: ${err.message}`);
         }

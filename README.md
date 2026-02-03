@@ -22,7 +22,9 @@ npm install stream-axios
 ### 1. Basic Request (Same as axios)
 
 ```javascript
-import request from "stream-axios";
+import { createInstance } from "stream-axios";
+
+const request = createInstance();
 
 // GET request
 request
@@ -53,7 +55,9 @@ request
 Suitable for scenarios like receiving large files or AI conversation streams.
 
 ```javascript
-import request from "stream-axios";
+import { createInstance } from "stream-axios";
+
+const request = createInstance();
 
 const cancel = await request.stream(
   {
@@ -106,17 +110,70 @@ myRequest.stream({ url: "/stream" }, (chunk) => console.log(chunk));
 If you are handling SSE (Server-Sent Events) format data:
 
 ```javascript
-import request, { parseSSEChunk } from "stream-axios";
+import { createInstance, parseSSEChunk } from "stream-axios";
 
+const request = createInstance();
+
+// Simple usage - parse data field only
 request.stream({ url: "/sse-endpoint", method: "GET" }, (chunk) => {
-  // Parse SSE data
   parseSSEChunk(chunk, (content) => {
     console.log("SSE Message:", content);
   });
 });
 ```
 
-### 5. Use with Existing Axios Instance
+For production environments, use `createSSEParser` which handles chunks that may be split across multiple packets:
+
+```javascript
+import { createInstance, createSSEParser } from "stream-axios";
+
+const request = createInstance();
+
+// Create a stateful parser with buffer
+const parser = createSSEParser((event) => {
+  // event object contains: { event?, data?, id?, retry? }
+  console.log("Event type:", event.event);
+  console.log("Data:", event.data);
+  console.log("ID:", event.id);
+});
+
+request.stream(
+  { url: "/sse-endpoint", method: "GET" },
+  parser,
+  () => console.log("Completed"),
+  (error) => console.error("Error:", error),
+);
+```
+
+### 5. Cancel with External AbortSignal
+
+You can pass an external `AbortSignal` to control the stream request:
+
+```javascript
+import { createInstance } from "stream-axios";
+
+const request = createInstance();
+const controller = new AbortController();
+
+request.stream(
+  {
+    url: "/api/chat",
+    method: "POST",
+    data: { message: "Hello" },
+    signal: controller.signal, // Pass external signal
+  },
+  (chunk) => console.log(chunk),
+  () => console.log("Completed"),
+  (error) => console.error(error),
+);
+
+// Cancel from external controller
+setTimeout(() => {
+  controller.abort();
+}, 5000);
+```
+
+### 6. Use with Existing Axios Instance
 
 If you already have a configured axios instance in your project, you can attach the stream method to it:
 

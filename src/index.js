@@ -1,8 +1,5 @@
 import { createInstance } from "./core/axiosInstance.js";
-import { parseSSEChunk, createStreamRequest } from "./core/stream.js";
-
-// Create a default instance
-const service = createInstance();
+import { parseSSEChunk, createSSEParser, createStreamRequest } from "./core/stream.js";
 
 /**
  * Attach stream method to an existing axios instance
@@ -14,5 +11,4 @@ export const attachStream = (instance) => {
   return instance;
 };
 
-export { createInstance, parseSSEChunk, createStreamRequest };
-export default service;
+export { createInstance, parseSSEChunk, createSSEParser };

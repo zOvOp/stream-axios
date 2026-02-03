@@ -22,7 +22,9 @@ npm install stream-axios
 ### 1. 基础请求 (同 axios)
 
 ```javascript
-import request from "stream-axios";
+import { createInstance } from "stream-axios";
+
+const request = createInstance();
 
 // GET 请求
 request
@@ -106,17 +108,70 @@ myRequest.stream({ url: "/stream" }, (chunk) => console.log(chunk));
 如果你处理的是 SSE (Server-Sent Events) 格式的数据：
 
 ```javascript
-import request, { parseSSEChunk } from "stream-axios";
+import { createInstance, parseSSEChunk } from "stream-axios";
 
+const request = createInstance();
+
+// 简单用法 - 仅解析 data 字段
 request.stream({ url: "/sse-endpoint", method: "GET" }, (chunk) => {
-  // 解析 SSE 数据
   parseSSEChunk(chunk, (content) => {
     console.log("SSE Message:", content);
   });
 });
 ```
 
-### 5. 使用现有的 Axios 实例
+对于生产环境，建议使用 `createSSEParser`，它可以处理跨数据包拆分的 chunk：
+
+```javascript
+import { createInstance, createSSEParser } from "stream-axios";
+
+const request = createInstance();
+
+// 创建带缓冲区的有状态解析器
+const parser = createSSEParser((event) => {
+  // event 对象包含: { event?, data?, id?, retry? }
+  console.log("事件类型:", event.event);
+  console.log("数据:", event.data);
+  console.log("ID:", event.id);
+});
+
+request.stream(
+  { url: "/sse-endpoint", method: "GET" },
+  parser,
+  () => console.log("完成"),
+  (error) => console.error("错误:", error),
+);
+```
+
+### 5. 使用外部 AbortSignal 取消请求
+
+你可以传入外部的 `AbortSignal` 来控制流式请求：
+
+```javascript
+import { createInstance } from "stream-axios";
+
+const request = createInstance();
+const controller = new AbortController();
+
+request.stream(
+  {
+    url: "/api/chat",
+    method: "POST",
+    data: { message: "Hello" },
+    signal: controller.signal, // 传入外部信号
+  },
+  (chunk) => console.log(chunk),
+  () => console.log("完成"),
+  (error) => console.error(error),
+);
+
+// 从外部控制器取消请求
+setTimeout(() => {
+  controller.abort();
+}, 5000);
+```
+
+### 6. 使用现有的 Axios 实例
 
 如果你项目中已经有了配置好的 axios 实例，你可以将 stream 方法挂载到该实例上：
 
