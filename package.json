@@ -1,6 +1,6 @@
 {
   "name": "stream-axios",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Provide streaming interface capabilities for axios",
   "type": "module",
   "main": "dist/index.cjs",
@@ -44,7 +44,7 @@
   "bugs": {
     "url": "https://github.com/zOvOp/stream-axios/issues"
   },
-  "homepage": "https://github.com/zOvOp/stream-axios#readme",
+  "homepage": "https://zovop.github.io/stream-axios/",
   "author": "zovop",
   "license": "MIT",
   "dependencies": {
