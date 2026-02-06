@@ -5,6 +5,14 @@ export interface StreamOptions extends AxiosRequestConfig {
      * Optional AbortSignal to cancel the request from outside
      */
     signal?: AbortSignal;
+    /**
+     * Number of retry attempts on request failure (default: 0)
+     */
+    retry?: number;
+    /**
+     * Delay between retries in milliseconds (default: 1000)
+     */
+    retryDelay?: number;
 }
 
 export type CancelFunction = () => void;

@@ -104,68 +104,90 @@ export const createStreamRequest = (instance) => {
         cleanup();
         controller.abort();
         reader?.releaseLock();
+        // Only trigger onError if we are actually canceling a running/pending request
+        // and we haven't already finished.
         if (onError) onError("Stream request cancelled manually");
       } catch (err) {
         console.error("Failed to cancel stream request:", err);
       }
     };
 
-    try {
-      const response = await instance({
-        ...options,
-        isStream: true,
-        // Force critical config for streaming
-        adapter: "fetch",
-        responseType: "stream",
-        timeout: 0,
-        signal: controller.signal,
-      });
+    const maxRetries = options.retry || 0;
+    const retryDelay = options.retryDelay || 1000;
+    let attempts = 0;
 
-      // Handle both standard axios response and unwrapped response (by user interceptors)
-      // If user's interceptor returned response.data, 'response' itself might be the stream
-      const readableStream =
-        response.data ||
-        response.body ||
-        (response.getReader ? response : null);
+    const makeRequest = async () => {
+      try {
+        if (controller.signal.aborted) return;
 
-      if (!readableStream || typeof readableStream.getReader !== "function") {
-        throw new Error(
-          "Browser does not support stream response, API did not return stream, or response was transformed incorrectly",
-        );
-      }
+        const response = await instance({
+          ...options,
+          isStream: true,
+          // Force critical config for streaming
+          adapter: "fetch",
+          responseType: "stream",
+          timeout: 0,
+          signal: controller.signal,
+        });
 
-      const decoder = new TextDecoder("utf-8");
-      reader = readableStream.getReader();
+        // Handle both standard axios response and unwrapped response (by user interceptors)
+        // If user's interceptor returned response.data, 'response' itself might be the stream
+        const readableStream =
+          response.data ||
+          response.body ||
+          (response.getReader ? response : null);
 
-      const readStreamChunk = async () => {
-        try {
-          const { done, value } = await reader.read();
-          if (done) {
-            cleanup();
-            if (onComplete) onComplete();
-            return;
-          }
-          const chunk = decoder.decode(value, { stream: true });
-
-          if (onChunk) onChunk(chunk);
-          await readStreamChunk();
-        } catch (err) {
-          cleanup();
-          if (err.name === "AbortError") return;
-          if (onError) onError(`Read stream failed: ${err.message}`);
+        if (!readableStream || typeof readableStream.getReader !== "function") {
+          throw new Error(
+            "Browser does not support stream response, API did not return stream, or response was transformed incorrectly",
+          );
         }
-      };
 
-      readStreamChunk();
-    } catch (err) {
-      if (err.name === "CanceledError" || err.code === "ERR_CANCELED") {
-        // Handle axios cancellation if needed
-        return cancelRequest;
+        const decoder = new TextDecoder("utf-8");
+        reader = readableStream.getReader();
+
+        const readStreamChunk = async () => {
+          try {
+            const { done, value } = await reader.read();
+            if (done) {
+              cleanup();
+              if (onComplete) onComplete();
+              return;
+            }
+            const chunk = decoder.decode(value, { stream: true });
+
+            if (onChunk) onChunk(chunk);
+            await readStreamChunk();
+          } catch (err) {
+            cleanup();
+            if (err.name === "AbortError") return;
+            if (onError) onError(`Read stream failed: ${err.message}`);
+          }
+        };
+
+        readStreamChunk();
+      } catch (err) {
+        if (
+          err.name === "CanceledError" ||
+          err.code === "ERR_CANCELED" ||
+          controller.signal.aborted
+        ) {
+          return;
+        }
+
+        if (attempts < maxRetries) {
+          attempts++;
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+          return makeRequest();
+        }
+
+        const errorMsg = err.message || "Stream request failed";
+        if (onError) onError(errorMsg);
+        console.error("Stream request failed:", errorMsg);
       }
-      const errorMsg = err.message || "Stream request failed";
-      if (onError) onError(errorMsg);
-      console.error("Stream request failed:", errorMsg);
-    }
+    };
+
+    makeRequest();
 
     return cancelRequest;
   };

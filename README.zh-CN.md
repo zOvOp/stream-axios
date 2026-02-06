@@ -10,6 +10,7 @@
 - 🌊 **流式支持**：内置 `stream` 方法，轻松处理流式响应（如 LLM 打字机效果）。
 - 🛠 **开箱即用**：提供默认实例，也支持创建自定义实例。
 - 📦 **SSE 助手**：内置 SSE 解析工具，方便处理 Server-Sent Events。
+- 🔄 **自动重试**：支持请求失败自动重试，提升稳定性。
 
 ## 安装
 
@@ -96,7 +97,24 @@ await request.stream(
 // controller.abort(); // 取消请求
 ```
 
-### 3. 自定义实例
+### 3. 重试机制 (Retry)
+
+支持配置失败自动重试（例如应对网络波动）：
+
+```javascript
+await request.stream(
+  {
+    url: "/api/chat",
+    retry: 3, // 失败后最多重试 3 次
+    retryDelay: 2000, // 每次重试间隔 2000ms (默认 1000ms)
+  },
+  onChunk,
+  onComplete,
+  onError,
+);
+```
+
+### 4. 自定义实例
 
 `createInstance` 会将你的配置与默认配置（超时 15 秒、`Content-Type: application/json;charset=utf-8`）合并，可按需覆盖：
 
@@ -115,7 +133,7 @@ myRequest.interceptors.request.use((config) => {
 });
 ```
 
-### 4. 为已有 axios 实例挂载 stream
+### 5. 为已有 axios 实例挂载 stream
 
 若已有 axios 实例，可用 `attachStream` 为其添加 `stream` 方法，无需新建实例：
 
@@ -127,10 +145,15 @@ const instance = axios.create({ baseURL: "https://api.example.com" });
 attachStream(instance);
 
 // instance.stream() 现已可用
-const cancel = await instance.stream({ url: "/api/stream" }, onChunk, onComplete, onError);
+const cancel = await instance.stream(
+  { url: "/api/stream" },
+  onChunk,
+  onComplete,
+  onError,
+);
 ```
 
-### 5. 辅助函数
+### 6. 辅助函数
 
 #### `createSSEParser`（有状态，可处理分片）
 
@@ -148,10 +171,7 @@ const parser = createSSEParser((event) => {
   }
 });
 
-await request.stream(
-  { url: "/api/sse-stream" },
-  (chunk) => parser(chunk),
-);
+await request.stream({ url: "/api/sse-stream" }, (chunk) => parser(chunk));
 ```
 
 #### `parseSSEChunk`（无状态，仅完整块）
@@ -166,6 +186,7 @@ parseSSEChunk(sseText, (data) => {
   console.log("Message:", data); // "hello", 然后 "world"
 });
 ```
+
 ## License
 
 MIT

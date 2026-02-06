@@ -10,6 +10,7 @@ A wrapper library based on axios that retains the original configuration capabil
 - 🌊 **Streaming Support**: Built-in `stream` method to easily handle streaming responses (e.g., LLM typewriter effect).
 - 🛠 **Out of the Box**: Provides a default instance and supports creating custom instances.
 - 📦 **SSE Helper**: Built-in SSE parsing tool for easy handling of Server-Sent Events.
+- 🔄 **Auto Retry**: Support automatic retry on failure to improve robustness.
 
 ## Installation
 
@@ -96,7 +97,24 @@ await request.stream(
 // controller.abort(); // cancels the request
 ```
 
-### 3. Custom Instance
+### 3. Retry Mechanism
+
+You can configure automatic retries for failed requests (e.g. network errors):
+
+```javascript
+await request.stream(
+  {
+    url: "/api/chat",
+    retry: 3, // Retry up to 3 times on failure
+    retryDelay: 2000, // Wait 2s between retries (default: 1000ms)
+  },
+  onChunk,
+  onComplete,
+  onError,
+);
+```
+
+### 4. Custom Instance
 
 `createInstance` merges your config with the default (timeout 15s, `Content-Type: application/json;charset=utf-8`). Override as needed:
 
@@ -115,7 +133,7 @@ myRequest.interceptors.request.use((config) => {
 });
 ```
 
-### 4. Attach Stream to Existing Axios Instance
+### 5. Attach Stream to Existing Axios Instance
 
 If you already have an axios instance, use `attachStream` to add the `stream` method without creating a new instance:
 
@@ -127,10 +145,15 @@ const instance = axios.create({ baseURL: "https://api.example.com" });
 attachStream(instance);
 
 // instance.stream() is now available
-const cancel = await instance.stream({ url: "/api/stream" }, onChunk, onComplete, onError);
+const cancel = await instance.stream(
+  { url: "/api/stream" },
+  onChunk,
+  onComplete,
+  onError,
+);
 ```
 
-### 5. Helper Functions
+### 6. Helper Functions
 
 #### `createSSEParser` (stateful, handles split chunks)
 
@@ -148,10 +171,7 @@ const parser = createSSEParser((event) => {
   }
 });
 
-await request.stream(
-  { url: "/api/sse-stream" },
-  (chunk) => parser(chunk),
-);
+await request.stream({ url: "/api/sse-stream" }, (chunk) => parser(chunk));
 ```
 
 #### `parseSSEChunk` (stateless, full chunks only)
@@ -166,6 +186,7 @@ parseSSEChunk(sseText, (data) => {
   console.log("Message:", data); // "hello", then "world"
 });
 ```
+
 ## License
 
 MIT
