@@ -16,7 +16,7 @@ A wrapper library based on axios that retains the original configuration capabil
 ## Installation
 
 ```bash
-npm install stream-axios axios
+npm install stream-axios
 ```
 
 ## Usage Guide

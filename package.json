@@ -1,6 +1,6 @@
 {
   "name": "stream-axios",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Provide streaming interface capabilities for axios",
   "type": "module",
   "main": "dist/index.cjs",
@@ -46,13 +46,12 @@
   "homepage": "https://zovop.github.io/stream-axios/",
   "author": "zovop",
   "license": "MIT",
-  "peerDependencies": {
-    "axios": ">=1.6.0"
+  "dependencies": {
+    "axios": "^1.7.9"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-typescript": "^12.3.0",
-    "axios": "^1.7.9",
     "rollup": "^4.57.1",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3"

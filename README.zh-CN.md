@@ -16,7 +16,7 @@
 ## 安装
 
 ```bash
-npm install stream-axios axios
+npm install stream-axios
 ```
 
 ## 使用指南
